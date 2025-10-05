@@ -66,10 +66,10 @@ class PredictionBatchInput(BaseModel):
 
 # --- 4. Define API Endpoints ---
 
-@app.get("/")
-def read_root():
-    """Returns a simple status message for the root endpoint."""
-    return {"message": "Air Quality Prediction API is running. Go to /docs for the interactive API documentation."}
+# @app.get("/")
+# def read_root():
+#     """Returns a simple status message for the root endpoint."""
+#     return {"message": "Air Quality Prediction API is running. Go to /docs for the interactive API documentation."}
 
 
 @app.post("/predict", response_model=List[PredictionOutput])
