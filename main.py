@@ -41,37 +41,31 @@ app.add_middleware(
 )
 
 
-
 # --- 3. Define Input Data Structure (Pydantic Schema) ---
-# This ensures that the incoming JSON data is valid
 class PredictionInput(BaseModel):
     """Schema for a single location input."""
     Latitude: float = Field(..., description="Geographic Latitude of the monitoring station.")
     Longitude: float = Field(..., description="Geographic Longitude of the monitoring station.")
 
 class PredictionOutput(BaseModel):
-    """Schema for a single prediction output."""
-    PM2_5: float = Field(..., description="Predicted PM2.5 concentration (ug/m3).")
-    PM10: float = Field(..., description="Predicted PM10 concentration (ug/m3).")
-    O3: float = Field(..., description="Predicted Ozone concentration (ppb).")
-    NO2: float = Field(..., description="Predicted Nitrogen Dioxide concentration (ppb).")
-    CO: float = Field(..., description="Predicted Carbon Monoxide concentration (ppm).")
-    SO2: float = Field(..., description="Predicted Sulfur Dioxide concentration (ppb).")
+    """
+    REVISED Schema for a single prediction output.
+    AQI, PM2_5, PM10, O3, NO2 are int. CO and SO2 remain float for one decimal precision.
+    """
+    AQI: int = Field(..., description="Predicted AQI value (integer).")
+    PM2_5: int = Field(..., description="Predicted PM2.5 concentration (ug/m3, integer).")
+    PM10: int = Field(..., description="Predicted PM10 concentration (ug/m3, integer).")
+    O3: int = Field(..., description="Predicted Ozone concentration (ppb, integer).")
+    NO2: int = Field(..., description="Predicted Nitrogen Dioxide concentration (ppb, integer).")
+    CO: float = Field(..., description="Predicted Carbon Monoxide concentration (ppm, 1 decimal float).")
+    SO2: float = Field(..., description="Predicted Sulfur Dioxide concentration (ppb, 1 decimal float).")
 
-# The endpoint expects a list of these inputs
 class PredictionBatchInput(BaseModel):
     """Schema for batch prediction input (a list of locations)."""
     locations: List[PredictionInput]
 
 
 # --- 4. Define API Endpoints ---
-
-# @app.get("/")
-# def read_root():
-#     """Returns a simple status message for the root endpoint."""
-#     return {"message": "Air Quality Prediction API is running. Go to /docs for the interactive API documentation."}
-
-
 @app.post("/predict", response_model=List[PredictionOutput])
 async def predict_air_quality(data: PredictionBatchInput):
     """
@@ -88,17 +82,30 @@ async def predict_air_quality(data: PredictionBatchInput):
             raise ValueError("Input data must contain 'Latitude' and 'Longitude' columns.")
 
         # Make the prediction
-        # The model is a MultiOutputRegressor, so it returns an array (N_samples, N_outputs)
         predictions_array = model.predict(X_df)
 
         # Define the order of the predicted output columns
-        output_targets = ['PM2_5', 'PM10', 'O3', 'NO2', 'CO', 'SO2']
+        output_targets = ['AQI', 'PM2_5', 'PM10', 'O3', 'NO2', 'CO', 'SO2']
 
         # Format the predictions into the Pydantic output schema
         results = []
         for pred in predictions_array:
             # Create a dictionary mapping the output target names to the predicted values
             prediction_dict = dict(zip(output_targets, pred.tolist()))
+
+            # Apply the required type conversions and rounding
+            
+            # 1. Round and convert to int for AQI, PM2_5, PM10, O3, NO2
+            prediction_dict['AQI'] = int(round(prediction_dict['AQI']))
+            prediction_dict['PM2_5'] = int(round(prediction_dict['PM2_5']))
+            prediction_dict['PM10'] = int(round(prediction_dict['PM10']))
+            prediction_dict['O3'] = int(round(prediction_dict['O3']))
+            prediction_dict['NO2'] = int(round(prediction_dict['NO2']))
+            
+            # 2. Round to 1 decimal place for CO and SO2
+            prediction_dict['CO'] = round(prediction_dict['CO'], 1)
+            prediction_dict['SO2'] = round(prediction_dict['SO2'], 1)
+
             results.append(PredictionOutput(**prediction_dict))
 
         return results
